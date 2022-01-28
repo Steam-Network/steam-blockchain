@@ -5,7 +5,7 @@ import multiprocessing
 from concurrent.futures.process import ProcessPoolExecutor
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Protocol
 
 from clvm.casts import int_from_bytes
 
@@ -29,6 +29,7 @@ from chia.full_node.coin_store import CoinStore
 from chia.full_node.hint_store import HintStore
 from chia.full_node.mempool_check_conditions import get_name_puzzle_conditions
 from chia.types.blockchain_format.coin import Coin
+from chia.types.blockchain_format.program import SerializedProgram
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.blockchain_format.sub_epoch_summary import SubEpochSummary
 from chia.types.blockchain_format.vdf import VDFInfo
@@ -854,8 +855,21 @@ class Blockchain(BlockchainInterface):
         self._seen_compact_proofs.add(pot_tuple)
         return False
 
+    class BlockInfo(Protocol):
+        @property
+        def prev_header_hash(self) -> bytes32:
+            pass
+
+        @property
+        def transactions_generator(self) -> Optional[SerializedProgram]:
+            pass
+
+        @property
+        def transactions_generator_ref_list(self) -> List[uint32]:
+            pass
+
     async def get_block_generator(
-        self, block: Union[FullBlock, UnfinishedBlock], additional_blocks=None
+        self, block: BlockInfo, additional_blocks: Dict[bytes32, FullBlock] = None
     ) -> Optional[BlockGenerator]:
         if additional_blocks is None:
             additional_blocks = {}
@@ -886,7 +900,7 @@ class Blockchain(BlockchainInterface):
         else:
             # First tries to find the blocks in additional_blocks
             reorg_chain: Dict[uint32, FullBlock] = {}
-            curr: Union[FullBlock, UnfinishedBlock] = block
+            curr = block
             additional_height_dict = {}
             while curr.prev_header_hash in additional_blocks:
                 prev: FullBlock = additional_blocks[curr.prev_header_hash]
